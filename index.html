@@ -3,129 +3,233 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ThreeJS Point Cloud Animator</title>
+    <title>Point Cloud Studio</title>
     <style>
-        body { margin: 0; overflow: hidden; background-color: #111; color: white; font-family: sans-serif; }
-        canvas { display: block; }
-        
-        /* UI Overlay */
-        #ui {
-            position: absolute; top: 10px; left: 10px; width: 300px;
-            padding: 15px; background: rgba(0, 0, 0, 0.85);
-            border-radius: 8px; border: 1px solid #444;
-            pointer-events: auto;
-            box-shadow: 0 4px 10px rgba(0,0,0,0.5);
-            max-height: 95vh; overflow-y: auto;
-            scrollbar-width: thin;
-            scrollbar-color: #444 #222;
+        :root {
+            --bg-dark: rgba(15, 15, 20, 0.9);
+            --border: #333;
+            --accent: #00d2ff;
+            --accent-hover: #33e0ff;
+            --danger: #ff4757;
+            --success: #2ed573;
+            --text-main: #f1f2f6;
+            --text-sub: #a4b0be;
         }
-        
-        h3 { margin: 0 0 5px 0; font-size: 16px; color: #00d2ff; }
-        h4 { margin: 15px 0 5px 0; font-size: 14px; color: #ff0077; border-top: 1px solid #444; padding-top: 10px; }
-        p.sub { margin: 0 0 15px 0; font-size: 11px; color: #888; line-height: 1.4; }
-        
-        .control-group { margin-bottom: 8px; }
-        label { display: flex; justify-content: space-between; font-size: 11px; margin-bottom: 2px; color: #ccc; }
-        input[type="range"] { width: 100%; cursor: pointer; accent-color: #00d2ff; height: 5px; }
-        input[type="file"] { font-size: 12px; width: 100%; margin-bottom: 10px; }
-        
-        /* Buttons */
-        .btn-row { display: flex; gap: 5px; margin-bottom: 10px; }
-        button { flex: 1; padding: 6px; background: #333; color: white; border: 1px solid #555; cursor: pointer; border-radius: 4px; font-size: 11px; transition: 0.2s;}
-        button:hover { background: #444; border-color: #777; }
-        button.primary { background: #005f73; border-color: #008cba; }
-        button.primary:hover { background: #007791; }
-        button.danger { background: #5a1a1a; border-color: #8b2e2e; }
-        
-        /* Timeline Visuals */
-        #timeline-ui {
-            display: flex; gap: 2px; flex-wrap: wrap; margin-bottom: 10px;
-            min-height: 20px; background: #222; padding: 5px; border-radius: 4px;
-        }
-        .keyframe-chip {
-            width: 20px; height: 20px; background: #00d2ff; border-radius: 50%;
-            font-size: 10px; color: #000; display: flex; align-items: center; justify-content: center;
-            font-weight: bold; cursor: pointer;
-        }
-        .keyframe-chip:hover { background: #fff; }
 
-        .loading { color: yellow; font-size: 12px; display: none; margin-bottom: 10px;}
+        body { margin: 0; overflow: hidden; background-color: #050505; color: var(--text-main); font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; user-select: none; }
+        canvas { display: block; outline: none; }
+
+        /* --- SIDEBAR UI --- */
+        #ui-panel {
+            position: absolute; top: 10px; left: 10px; width: 300px;
+            background: var(--bg-dark);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            backdrop-filter: blur(10px);
+            padding: 15px;
+            max-height: calc(100vh - 40px);
+            overflow-y: auto;
+            box-shadow: 0 8px 20px rgba(0,0,0,0.6);
+            scrollbar-width: thin;
+            scrollbar-color: #444 #111;
+        }
+
+        h1 { margin: 0 0 5px 0; font-size: 18px; color: var(--accent); letter-spacing: 0.5px; }
+        p.desc { margin: 0 0 15px 0; font-size: 11px; color: var(--text-sub); line-height: 1.4; border-bottom: 1px solid var(--border); padding-bottom: 10px; }
+
+        .section-title {
+            font-size: 12px; font-weight: bold; text-transform: uppercase; 
+            color: #666; margin: 15px 0 8px 0; letter-spacing: 1px; display: flex; align-items: center; justify-content: space-between;
+        }
+
+        /* Controls */
+        .control-group { margin-bottom: 12px; }
+        label { display: flex; justify-content: space-between; font-size: 12px; margin-bottom: 4px; color: #ccc; align-items: center; }
+        span.val-display { font-family: monospace; color: var(--accent); font-size: 11px; }
+
+        input[type="range"] { 
+            width: 100%; -webkit-appearance: none; background: transparent; cursor: pointer; 
+        }
+        input[type="range"]::-webkit-slider-runnable-track {
+            width: 100%; height: 4px; background: #333; border-radius: 2px;
+        }
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none; height: 14px; width: 14px; border-radius: 50%; 
+            background: var(--accent); margin-top: -5px; transition: transform 0.1s;
+        }
+        input[type="range"]::-webkit-slider-thumb:hover { transform: scale(1.2); }
+
+        /* File Input */
+        .file-upload {
+            position: relative; overflow: hidden; display: inline-block; width: 100%;
+            border: 1px dashed #555; border-radius: 6px; padding: 10px; text-align: center;
+            cursor: pointer; background: rgba(255,255,255,0.05); transition: 0.2s;
+        }
+        .file-upload:hover { border-color: var(--accent); background: rgba(0, 210, 255, 0.1); }
+        .file-upload input[type=file] { position: absolute; top: 0; right: 0; min-width: 100%; min-height: 100%; opacity: 0; cursor: pointer; }
+        .file-text { font-size: 12px; color: var(--text-sub); pointer-events: none; }
+
+        /* Buttons */
+        .btn-row { display: flex; gap: 8px; margin-bottom: 10px; }
+        button {
+            flex: 1; padding: 8px; border: none; border-radius: 4px; 
+            font-size: 11px; font-weight: 600; cursor: pointer; transition: 0.2s; color: white;
+            background: #333; border: 1px solid #444;
+        }
+        button:hover { background: #444; border-color: #666; }
+        button:active { transform: translateY(1px); }
         
-        /* Input for duration */
-        .dur-input { width: 40px; background: #222; border: 1px solid #444; color: white; border-radius: 3px; text-align: center; }
+        button.primary { background: linear-gradient(135deg, #005f73, #0a3d62); border: 1px solid #008cba; }
+        button.primary:hover { background: linear-gradient(135deg, #007791, #005f73); }
+        
+        button.danger { background: #3d0d0d; border: 1px solid #8b2e2e; color: #ffadad; }
+        button.danger:hover { background: #5a1a1a; }
+
+        button.record { background: #2f3640; border-color: #555; display: flex; align-items: center; justify-content: center; gap: 5px; }
+        button.record.recording { background: #5a1a1a; border-color: #ff4757; color: white; animation: pulse 1.5s infinite; }
+        
+        @keyframes pulse { 0% { box-shadow: 0 0 0 0 rgba(255, 71, 87, 0.4); } 70% { box-shadow: 0 0 0 10px rgba(255, 71, 87, 0); } 100% { box-shadow: 0 0 0 0 rgba(255, 71, 87, 0); } }
+
+        /* Timeline Chips */
+        #timeline-track {
+            display: flex; gap: 4px; flex-wrap: wrap; margin-bottom: 10px;
+            min-height: 24px; background: rgba(0,0,0,0.3); padding: 4px; border-radius: 4px; border: 1px solid #333;
+        }
+        .kf-chip {
+            width: 24px; height: 24px; background: #222; border: 1px solid #444; border-radius: 4px;
+            font-size: 10px; color: var(--accent); display: flex; align-items: center; justify-content: center;
+            font-weight: bold; cursor: pointer; transition: 0.2s;
+        }
+        .kf-chip:hover { background: var(--accent); color: #000; border-color: var(--accent); }
+        .kf-chip.active { background: var(--accent); color: black; }
+
+        /* --- ON SCREEN NAV --- */
+        #nav-controls {
+            position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%);
+            background: var(--bg-dark); border: 1px solid var(--border);
+            padding: 8px 15px; border-radius: 30px; display: flex; gap: 10px;
+            backdrop-filter: blur(5px); box-shadow: 0 4px 15px rgba(0,0,0,0.5);
+        }
+        .nav-btn {
+            background: transparent; border: 1px solid transparent; color: #ccc;
+            width: 36px; height: 36px; border-radius: 50%; font-size: 16px; padding: 0;
+            display: flex; align-items: center; justify-content: center;
+        }
+        .nav-btn:hover { background: rgba(255,255,255,0.1); color: white; border-color: #555; }
+
+        /* Loading */
+        #loading {
+            position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+            font-size: 14px; color: var(--accent); font-weight: bold;
+            background: rgba(0,0,0,0.8); padding: 20px 40px; border-radius: 8px;
+            display: none; pointer-events: none; border: 1px solid var(--accent);
+        }
+        
+        .rec-indicator { width: 10px; height: 10px; background: red; border-radius: 50%; display: none; }
     </style>
 </head>
 <body>
 
-    <!-- UI Panel -->
-    <div id="ui">
-        <h3>Point Cloud Animator</h3>
-        <p class="sub">Left Click: Rotate | Right Click: Pan</p>
-        
-        <input type="file" id="fileInput" accept=".ply,.obj" />
-        <div id="loadingMsg" class="loading">Processing...</div>
+    <!-- UI Sidebar -->
+    <div id="ui-panel">
+        <div style="display: flex; justify-content: space-between; align-items: center;">
+            <h1>Point Cloud Studio</h1>
+            <button id="btnMasterReset" style="flex: 0; padding: 4px 8px; font-size: 10px;">↺ Reset</button>
+        </div>
+        <p class="desc">Upload .PLY/.OBJ. Manipulate particles with mouse or controls.</p>
+
+        <!-- File Upload -->
+        <label class="file-upload">
+            <input type="file" id="fileInput" accept=".ply,.obj" />
+            <span class="file-text" id="fileNameDisplay">📂 Click to Upload Model</span>
+        </label>
+
+        <!-- Interaction Section -->
+        <div class="section-title">
+            <span>Mouse Interaction</span>
+            <input type="checkbox" id="interactionToggle" checked title="Toggle Interaction">
+        </div>
         
         <div class="control-group">
-            <label>Disintegration <span>(Explode)</span></label>
+            <label>Radius <span id="val-rad" class="val-display">0.8</span></label>
+            <input type="range" id="radiusSlider" min="0.2" max="2.5" step="0.1" value="0.8">
+        </div>
+        <div class="control-group">
+            <label>Force (Push) <span id="val-force" class="val-display">1.5</span></label>
+            <input type="range" id="forceSlider" min="0" max="4.0" step="0.1" value="1.5">
+        </div>
+        <div class="control-group">
+            <label style="color: #ff9f43;">Chaos (Noise) <span id="val-noise" class="val-display">1.5</span></label>
+            <input type="range" id="mouseNoiseSlider" min="0" max="3.0" step="0.1" value="1.5">
+        </div>
+
+        <!-- Global Effects -->
+        <div class="section-title">Global Effects</div>
+        <div class="control-group">
+            <label>Disintegration <span id="val-exp" class="val-display">0.0</span></label>
             <input type="range" id="explodeSlider" min="0" max="5.0" step="0.01" value="0">
         </div>
-
         <div class="control-group">
-            <label>Twist <span>(Vortex)</span></label>
+            <label>Twist / Vortex <span id="val-twist" class="val-display">0.0</span></label>
             <input type="range" id="twistSlider" min="0" max="3.0" step="0.01" value="0">
         </div>
-
         <div class="control-group">
-            <label>Noise <span>(Wavy)</span></label>
-            <input type="range" id="noiseSlider" min="0" max="2.0" step="0.01" value="0">
+            <label>Point Size <span id="val-size" class="val-display">0.03</span></label>
+            <input type="range" id="sizeSlider" min="0.005" max="0.2" step="0.001" value="0.03">
         </div>
-
         <div class="control-group">
-            <label>Point Size</label>
-            <input type="range" id="sizeSlider" min="0.01" max="0.3" step="0.001" value="0.03">
-        </div>
-        
-        <div class="control-group">
-            <label>Color Hue</label>
+            <label>Color Hue <span id="val-col" class="val-display">0.0</span></label>
             <input type="range" id="colorSlider" min="0" max="1" step="0.01" value="0">
         </div>
 
-        <!-- Animation Controls -->
-        <h4>Timeline</h4>
-        <div class="control-group">
-            <label>Duration to next (sec): <input type="number" id="durationInput" value="2.0" class="dur-input" step="0.1"></label>
+        <!-- Animation Timeline -->
+        <div class="section-title">Timeline</div>
+        <div class="control-group" style="display: flex; align-items: center; gap: 10px;">
+            <label style="margin:0;">Duration (s):</label>
+            <input type="number" id="durationInput" value="2.0" style="width: 50px; background: #222; border: 1px solid #444; color: white; text-align: center; border-radius: 4px;">
+        </div>
+        <div id="timeline-track"></div>
+        <div class="btn-row">
+            <button id="btnAddKF" class="primary">+ Keyframe</button>
+            <button id="btnPlay" style="background: var(--success); color: black;">▶ Play</button>
+            <button id="btnClear" class="danger">✖ Clear</button>
         </div>
 
-        <div id="timeline-ui">
-            <!-- Keyframe chips go here -->
-        </div>
-
-        <div class="btn-row">
-            <button id="btnAddKF" class="primary">+ Add Keyframe</button>
-            <button id="btnClear" class="danger">Clear</button>
-        </div>
-        <div class="btn-row">
-            <button id="btnPlay" style="background: #2ea043;">▶ Play Animation</button>
-        </div>
+        <!-- Export -->
+        <div class="section-title">Recording</div>
+        <button id="btnRecord" class="record">
+            <div class="rec-indicator"></div> <span id="recText">Start Recording</span>
+        </button>
     </div>
 
-    <!-- Application Script -->
+    <!-- On Screen Navigation -->
+    <div id="nav-controls">
+        <button class="nav-btn" id="navZoomOut" title="Zoom Out">－</button>
+        <button class="nav-btn" id="navReset" title="Reset View">⌖</button>
+        <button class="nav-btn" id="navAutoRotate" title="Auto Rotate">↻</button>
+        <button class="nav-btn" id="navZoomIn" title="Zoom In">＋</button>
+    </div>
+
+    <div id="loading">Processing Geometry...</div>
+
+    <!-- MAIN SCRIPT -->
     <script type="module">
         import * as THREE from 'https://esm.sh/three@0.160.0';
         import { OrbitControls } from 'https://esm.sh/three@0.160.0/examples/jsm/controls/OrbitControls.js';
         import { PLYLoader } from 'https://esm.sh/three@0.160.0/examples/jsm/loaders/PLYLoader.js';
         import { OBJLoader } from 'https://esm.sh/three@0.160.0/examples/jsm/loaders/OBJLoader.js';
-        // Import GSAP for Tweens
         import gsap from 'https://esm.sh/gsap@3.12.5';
 
-        // --- 1. Setup Scene ---
+        // --- 1. Scene Setup ---
         const scene = new THREE.Scene();
-        scene.background = new THREE.Color(0x111111);
+        scene.background = new THREE.Color(0x050505);
+        scene.fog = new THREE.FogExp2(0x050505, 0.05);
         
         const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.01, 100);
-        camera.position.set(0, 0, 4); 
+        const initialCamPos = new THREE.Vector3(0, 0, 4);
+        camera.position.copy(initialCamPos);
 
-        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true }); // preserveDrawingBuffer needed for recording
         renderer.setSize(window.innerWidth, window.innerHeight);
         renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
         document.body.appendChild(renderer.domElement);
@@ -134,14 +238,34 @@
         controls.enableDamping = true;
         controls.dampingFactor = 0.05;
 
-        // --- 2. Shader Material ---
+        // --- 2. Interaction & Cursor ---
+        const interactionPlane = new THREE.Mesh(
+            new THREE.PlaneGeometry(100, 100),
+            new THREE.MeshBasicMaterial({ visible: false })
+        );
+        scene.add(interactionPlane);
+
+        const cursorMesh = new THREE.Mesh(
+            new THREE.SphereGeometry(0.1, 16, 16),
+            new THREE.MeshBasicMaterial({ color: 0xff9f43, transparent: true, opacity: 0.5, wireframe: true })
+        );
+        scene.add(cursorMesh);
+
+        const raycaster = new THREE.Raycaster();
+        const pointer = new THREE.Vector2(999, 999);
+        let isInteractionEnabled = true;
+
+        // --- 3. Shader Material ---
         const uniforms = {
             uTime: { value: 0 },
             uExplode: { value: 0 },
             uTwist: { value: 0 },
-            uNoiseStrength: { value: 0 },
             uPointSize: { value: 0.03 },
-            uColorShift: { value: 0.0 }
+            uColorShift: { value: 0.0 },
+            uMouse: { value: new THREE.Vector3(999, 999, 999) },
+            uMouseRadius: { value: 0.8 },
+            uMouseForce: { value: 1.5 },
+            uMouseNoise: { value: 1.5 }
         };
 
         const particleMaterial = new THREE.ShaderMaterial({
@@ -150,12 +274,21 @@
                 uniform float uTime;
                 uniform float uExplode;
                 uniform float uTwist;
-                uniform float uNoiseStrength;
                 uniform float uPointSize;
+                
+                uniform vec3 uMouse;
+                uniform float uMouseRadius;
+                uniform float uMouseForce;
+                uniform float uMouseNoise;
                 
                 attribute vec3 aRandom;
                 attribute float aSize;
                 varying vec3 vColor;
+
+                // Hash function for pseudo-randomness on GPU
+                float random(vec2 st) {
+                    return fract(sin(dot(st.xy, vec2(12.9898,78.233))) * 43758.5453123);
+                }
 
                 void main() {
                     vec3 pos = position;
@@ -167,12 +300,25 @@
                     mat2 rotation = mat2(c, -s, s, c);
                     pos.xz = pos.xz * rotation;
 
-                    // Noise
-                    pos.x += sin(pos.y * 10.0 + uTime * 2.0) * uNoiseStrength * 0.1;
-                    pos.z += cos(pos.x * 10.0 + uTime * 2.0) * uNoiseStrength * 0.1;
+                    // Global Explode
+                    pos += aRandom * uExplode * (1.0 + sin(uTime * 2.0 + pos.y) * 0.2);
 
-                    // Disintegration
-                    pos += aRandom * uExplode * (1.0 + sin(uTime * 3.0 + pos.y) * 0.2);
+                    // Interaction
+                    float dist = distance(pos, uMouse);
+                    if (dist < uMouseRadius) {
+                        vec3 dir = normalize(pos - uMouse);
+                        float influence = smoothstep(uMouseRadius, 0.0, dist);
+                        
+                        // Force 1: Push
+                        vec3 push = dir * uMouseForce;
+                        
+                        // Force 2: Noise/Chaos
+                        // Create a chaotic vector based on position and time
+                        vec3 noiseVec = aRandom * (sin(uTime * 10.0) + 1.0) * 0.5; 
+                        vec3 chaos = noiseVec * uMouseNoise;
+
+                        pos += (push + chaos) * influence;
+                    }
 
                     vec4 mvPosition = modelViewMatrix * vec4(pos, 1.0);
                     gl_PointSize = uPointSize * (300.0 / -mvPosition.z) * aSize;
@@ -192,10 +338,14 @@
 
                 void main() {
                     vec2 coord = gl_PointCoord - vec2(0.5);
-                    if(length(coord) > 0.5) discard;
+                    float dist = length(coord);
+                    if(dist > 0.5) discard;
+                    
                     vec3 finalColor = hueShift(vColor, uColorShift);
-                    // Simple glow
-                    float alpha = 1.0 - smoothstep(0.2, 0.5, length(coord));
+                    
+                    // Glowy center, soft edge
+                    float alpha = 1.0 - smoothstep(0.1, 0.5, dist);
+                    
                     gl_FragColor = vec4(finalColor, alpha);
                 }
             `,
@@ -207,126 +357,253 @@
 
         let currentPoints = null;
 
-        // --- 3. Animation Logic (Timeline) ---
-        let keyframes = [];
-        const timelineUI = document.getElementById('timeline-ui');
-        
-        // Helper: Update UI sliders to match internal state
-        function updateSlidersFromUniforms() {
-            document.getElementById('explodeSlider').value = uniforms.uExplode.value;
-            document.getElementById('twistSlider').value = uniforms.uTwist.value;
-            document.getElementById('noiseSlider').value = uniforms.uNoiseStrength.value;
-            document.getElementById('sizeSlider').value = uniforms.uPointSize.value;
-            document.getElementById('colorSlider').value = uniforms.uColorShift.value;
+        // --- 4. Logic: Sliders & Values ---
+        function bindSlider(id, uniformKey, displayId) {
+            const slider = document.getElementById(id);
+            const display = document.getElementById(displayId);
+            slider.addEventListener('input', (e) => {
+                const val = parseFloat(e.target.value);
+                uniforms[uniformKey].value = val;
+                if(display) display.innerText = val.toFixed(2);
+            });
         }
 
-        document.getElementById('btnAddKF').addEventListener('click', () => {
-            const duration = parseFloat(document.getElementById('durationInput').value) || 1.0;
-            
-            // Capture current state
-            const kf = {
-                explode: uniforms.uExplode.value,
-                twist: uniforms.uTwist.value,
-                noise: uniforms.uNoiseStrength.value,
-                size: uniforms.uPointSize.value,
-                colorShift: uniforms.uColorShift.value,
-                // Capture Camera
-                camPos: camera.position.clone(),
-                camTarget: controls.target.clone(),
-                duration: duration
+        bindSlider('radiusSlider', 'uMouseRadius', 'val-rad');
+        bindSlider('forceSlider', 'uMouseForce', 'val-force');
+        bindSlider('mouseNoiseSlider', 'uMouseNoise', 'val-noise');
+        bindSlider('explodeSlider', 'uExplode', 'val-exp');
+        bindSlider('twistSlider', 'uTwist', 'val-twist');
+        bindSlider('sizeSlider', 'uPointSize', 'val-size');
+        bindSlider('colorSlider', 'uColorShift', 'val-col');
+
+        // Toggle Interaction
+        document.getElementById('interactionToggle').addEventListener('change', (e) => {
+            isInteractionEnabled = e.target.checked;
+            cursorMesh.visible = isInteractionEnabled;
+            if(!isInteractionEnabled) uniforms.uMouse.value.set(999,999,999);
+        });
+
+        // Master Reset
+        document.getElementById('btnMasterReset').addEventListener('click', () => {
+            // Reset Camera
+            camera.position.copy(initialCamPos);
+            controls.target.set(0,0,0);
+            controls.autoRotate = false;
+            document.getElementById('navAutoRotate').style.color = '#ccc';
+
+            // Reset Uniforms & Sliders
+            const defaults = {
+                explodeSlider: 0, twistSlider: 0, sizeSlider: 0.03, colorSlider: 0,
+                radiusSlider: 0.8, forceSlider: 1.5, mouseNoiseSlider: 1.5
             };
             
+            for(const [id, val] of Object.entries(defaults)) {
+                const el = document.getElementById(id);
+                el.value = val;
+                el.dispatchEvent(new Event('input')); // Trigger update
+            }
+        });
+
+        // --- 5. Logic: Timeline ---
+        let keyframes = [];
+        const timelineTrack = document.getElementById('timeline-track');
+
+        document.getElementById('btnAddKF').addEventListener('click', () => {
+            const kf = {
+                state: {
+                    uExplode: uniforms.uExplode.value,
+                    uTwist: uniforms.uTwist.value,
+                    uPointSize: uniforms.uPointSize.value,
+                    uColorShift: uniforms.uColorShift.value,
+                    uMouseRadius: uniforms.uMouseRadius.value,
+                    uMouseForce: uniforms.uMouseForce.value,
+                    uMouseNoise: uniforms.uMouseNoise.value
+                },
+                cam: { pos: camera.position.clone(), target: controls.target.clone() },
+                duration: parseFloat(document.getElementById('durationInput').value) || 2.0
+            };
             keyframes.push(kf);
-            renderTimelineUI();
+            renderTimeline();
         });
 
         document.getElementById('btnClear').addEventListener('click', () => {
             keyframes = [];
-            renderTimelineUI();
+            renderTimeline();
         });
 
-        function renderTimelineUI() {
-            timelineUI.innerHTML = '';
-            keyframes.forEach((kf, index) => {
+        function renderTimeline() {
+            timelineTrack.innerHTML = '';
+            keyframes.forEach((kf, i) => {
                 const chip = document.createElement('div');
-                chip.className = 'keyframe-chip';
-                chip.textContent = index + 1;
-                chip.title = `Dur: ${kf.duration}s`;
+                chip.className = 'kf-chip';
+                chip.innerText = i + 1;
                 chip.onclick = () => restoreKeyframe(kf);
-                timelineUI.appendChild(chip);
+                timelineTrack.appendChild(chip);
             });
         }
 
         function restoreKeyframe(kf) {
-            // Instant jump to state (for previewing)
-            uniforms.uExplode.value = kf.explode;
-            uniforms.uTwist.value = kf.twist;
-            uniforms.uNoiseStrength.value = kf.noise;
-            uniforms.uPointSize.value = kf.size;
-            uniforms.uColorShift.value = kf.colorShift;
-            
-            camera.position.copy(kf.camPos);
-            controls.target.copy(kf.camTarget);
+            // Set Uniforms
+            for(const [key, val] of Object.entries(kf.state)) {
+                uniforms[key].value = val;
+                // Update UI slider
+                // Map uniform name back to slider ID (simple mapping)
+                // This is a bit manual but works for this scope
+                if(key === 'uExplode') updateSlider('explodeSlider', val);
+                if(key === 'uTwist') updateSlider('twistSlider', val);
+                if(key === 'uPointSize') updateSlider('sizeSlider', val);
+                if(key === 'uColorShift') updateSlider('colorSlider', val);
+                if(key === 'uMouseRadius') updateSlider('radiusSlider', val);
+                if(key === 'uMouseForce') updateSlider('forceSlider', val);
+                if(key === 'uMouseNoise') updateSlider('mouseNoiseSlider', val);
+            }
+            camera.position.copy(kf.cam.pos);
+            controls.target.copy(kf.cam.target);
             controls.update();
-            updateSlidersFromUniforms();
+        }
+
+        function updateSlider(id, val) {
+            const el = document.getElementById(id);
+            if(el) { el.value = val; el.dispatchEvent(new Event('input')); }
         }
 
         document.getElementById('btnPlay').addEventListener('click', () => {
-            if(keyframes.length < 1) return;
+            if(keyframes.length === 0) return;
+            const tl = gsap.timeline();
+            
+            // Snap to start
+            restoreKeyframe(keyframes[0]);
 
-            // Create a GSAP Timeline
-            const tl = gsap.timeline({
-                onUpdate: updateSlidersFromUniforms // Sync sliders during playback
-            });
-
-            // Reset to first keyframe immediately
-            const start = keyframes[0];
-            restoreKeyframe(start);
-
-            // Chain subsequent keyframes
-            for(let i = 1; i < keyframes.length; i++) {
-                const kf = keyframes[i];
+            keyframes.forEach((kf, i) => {
+                if(i === 0) return; // Skip first, we are there
+                const d = kf.duration;
                 
                 // Animate Uniforms
-                tl.to(uniforms.uExplode, { value: kf.explode, duration: kf.duration, ease: "power2.inOut" }, `step${i}`);
-                tl.to(uniforms.uTwist, { value: kf.twist, duration: kf.duration, ease: "power2.inOut" }, `step${i}`);
-                tl.to(uniforms.uNoiseStrength, { value: kf.noise, duration: kf.duration, ease: "power2.inOut" }, `step${i}`);
-                tl.to(uniforms.uPointSize, { value: kf.size, duration: kf.duration, ease: "power2.inOut" }, `step${i}`);
-                tl.to(uniforms.uColorShift, { value: kf.colorShift, duration: kf.duration, ease: "power2.inOut" }, `step${i}`);
+                for(const [key, val] of Object.entries(kf.state)) {
+                    // We can animate the uniform object property directly
+                    tl.to(uniforms[key], { value: val, duration: d, ease: "power2.inOut", 
+                        onUpdate: () => { 
+                             // Optional: Sync sliders visually during playback? 
+                             // Can be heavy for DOM, skipping for performance
+                        } 
+                    }, `step${i}`);
+                }
                 
-                // Animate Camera Position
+                // Animate Camera
                 tl.to(camera.position, { 
-                    x: kf.camPos.x, y: kf.camPos.y, z: kf.camPos.z, 
-                    duration: kf.duration, 
-                    ease: "power2.inOut",
-                    onUpdate: () => controls.update() // Update controls as camera moves
+                    x: kf.cam.pos.x, y: kf.cam.pos.y, z: kf.cam.pos.z, 
+                    duration: d, ease: "power2.inOut", onUpdate: () => controls.update() 
                 }, `step${i}`);
                 
-                // Animate Controls Target (where camera looks)
                 tl.to(controls.target, { 
-                    x: kf.camTarget.x, y: kf.camTarget.y, z: kf.camTarget.z, 
-                    duration: kf.duration, 
-                    ease: "power2.inOut" 
+                    x: kf.cam.target.x, y: kf.cam.target.y, z: kf.cam.target.z, 
+                    duration: d, ease: "power2.inOut" 
                 }, `step${i}`);
+            });
+        });
+
+        // --- 6. Logic: Recording ---
+        const btnRecord = document.getElementById('btnRecord');
+        const recText = document.getElementById('recText');
+        const recIndicator = document.querySelector('.rec-indicator');
+        let mediaRecorder;
+        let recordedChunks = [];
+        let isRecording = false;
+
+        btnRecord.addEventListener('click', () => {
+            if(!isRecording) {
+                startRecording();
+            } else {
+                stopRecording();
             }
         });
 
+        function startRecording() {
+            try {
+                const stream = renderer.domElement.captureStream(30); // 30 FPS
+                mediaRecorder = new MediaRecorder(stream, { mimeType: 'video/webm; codecs=vp9' });
+                
+                mediaRecorder.ondataavailable = (event) => {
+                    if (event.data.size > 0) recordedChunks.push(event.data);
+                };
+                
+                mediaRecorder.onstop = saveVideo;
+                
+                mediaRecorder.start();
+                isRecording = true;
+                
+                // UI Update
+                btnRecord.classList.add('recording');
+                recText.innerText = "Stop Recording";
+                recIndicator.style.display = "block";
+            } catch (e) {
+                alert("Recording not supported in this browser. Try Chrome/Firefox.");
+            }
+        }
 
-        // --- 4. File Handling & Normalization ---
+        function stopRecording() {
+            mediaRecorder.stop();
+            isRecording = false;
+            
+            // UI Update
+            btnRecord.classList.remove('recording');
+            recText.innerText = "Start Recording";
+            recIndicator.style.display = "none";
+        }
+
+        function saveVideo() {
+            const blob = new Blob(recordedChunks, { type: 'video/webm' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.style.display = 'none';
+            a.href = url;
+            a.download = 'point_cloud_fx.webm';
+            document.body.appendChild(a);
+            a.click();
+            window.URL.revokeObjectURL(url);
+            recordedChunks = [];
+        }
+
+        // --- 7. Logic: On-Screen Navigation ---
+        document.getElementById('navZoomIn').addEventListener('click', () => {
+            // Move camera along its look vector
+            const direction = new THREE.Vector3();
+            camera.getWorldDirection(direction);
+            camera.position.add(direction.multiplyScalar(0.5));
+        });
+        document.getElementById('navZoomOut').addEventListener('click', () => {
+            const direction = new THREE.Vector3();
+            camera.getWorldDirection(direction);
+            camera.position.add(direction.multiplyScalar(-0.5));
+        });
+        document.getElementById('navReset').addEventListener('click', () => {
+             // Just reset view, keep effects
+             gsap.to(camera.position, { x: 0, y: 0, z: 4, duration: 1 });
+             gsap.to(controls.target, { x: 0, y: 0, z: 0, duration: 1 });
+        });
+        document.getElementById('navAutoRotate').addEventListener('click', (e) => {
+            controls.autoRotate = !controls.autoRotate;
+            e.target.style.color = controls.autoRotate ? '#00d2ff' : '#ccc';
+        });
+
+        // --- 8. File Handling ---
         const fileInput = document.getElementById('fileInput');
-        const loadingMsg = document.getElementById('loadingMsg');
+        const fileNameDisplay = document.getElementById('fileNameDisplay');
+        const loading = document.getElementById('loading');
 
         fileInput.addEventListener('change', (e) => {
             const file = e.target.files[0];
             if (!file) return;
-            loadingMsg.style.display = 'block';
+            
+            fileNameDisplay.innerText = file.name;
+            loading.style.display = 'block';
+            
             const reader = new FileReader();
             reader.onload = function(event) {
                 const contents = event.target.result;
                 const ext = file.name.split('.').pop().toLowerCase();
                 if (ext === 'ply') loadPLY(contents);
                 else if (ext === 'obj') loadOBJ(contents);
-                else { alert("Use .ply or .obj"); loadingMsg.style.display = 'none'; }
             };
             if(file.name.endsWith('.obj')) reader.readAsText(file);
             else reader.readAsArrayBuffer(file);
@@ -337,7 +614,6 @@
             const geometry = loader.parse(data);
             processGeometry(geometry);
         }
-
         function loadOBJ(data) {
             const loader = new OBJLoader();
             const object = loader.parse(data);
@@ -354,19 +630,21 @@
             // Normalize
             geometry.center();
             geometry.computeBoundingBox();
-            const box = geometry.boundingBox;
-            const size = new THREE.Vector3();
-            box.getSize(size);
-            const maxDim = Math.max(size.x, size.y, size.z);
-            if(maxDim > 0) { const s = 3.0 / maxDim; geometry.scale(s, s, s); }
+            const maxDim = Math.max(
+                geometry.boundingBox.max.x - geometry.boundingBox.min.x,
+                geometry.boundingBox.max.y - geometry.boundingBox.min.y,
+                geometry.boundingBox.max.z - geometry.boundingBox.min.z
+            );
+            if(maxDim > 0) geometry.scale(3.0/maxDim, 3.0/maxDim, 3.0/maxDim);
 
+            // Attributes
             const count = geometry.attributes.position.count;
             const randoms = new Float32Array(count * 3);
             const sizes = new Float32Array(count);
             for(let i = 0; i < count; i++) {
-                randoms[i * 3] = (Math.random() - 0.5) * 2;
-                randoms[i * 3 + 1] = (Math.random() - 0.5) * 2;
-                randoms[i * 3 + 2] = (Math.random() - 0.5) * 2;
+                randoms[i*3] = (Math.random()-0.5)*2; 
+                randoms[i*3+1] = (Math.random()-0.5)*2; 
+                randoms[i*3+2] = (Math.random()-0.5)*2;
                 sizes[i] = 0.5 + Math.random();
             }
             geometry.setAttribute('aRandom', new THREE.BufferAttribute(randoms, 3));
@@ -376,8 +654,8 @@
                 const colors = new Float32Array(count * 3);
                 const pos = geometry.attributes.position;
                 for(let i=0; i<count; i++) {
-                    colors[i*3] = 0.5 + (pos.getX(i)*0.3);
-                    colors[i*3+1] = 0.5 + (pos.getY(i)*0.3);
+                    colors[i*3] = 0.5 + pos.getX(i)*0.3;
+                    colors[i*3+1] = 0.5 + pos.getY(i)*0.3;
                     colors[i*3+2] = 1.0;
                 }
                 geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
@@ -385,32 +663,52 @@
 
             currentPoints = new THREE.Points(geometry, particleMaterial);
             scene.add(currentPoints);
-            loadingMsg.style.display = 'none';
+            loading.style.display = 'none';
         }
 
-        // --- 5. Inputs Connection ---
-        document.getElementById('explodeSlider').addEventListener('input', (e) => uniforms.uExplode.value = parseFloat(e.target.value));
-        document.getElementById('twistSlider').addEventListener('input', (e) => uniforms.uTwist.value = parseFloat(e.target.value));
-        document.getElementById('noiseSlider').addEventListener('input', (e) => uniforms.uNoiseStrength.value = parseFloat(e.target.value));
-        document.getElementById('sizeSlider').addEventListener('input', (e) => uniforms.uPointSize.value = parseFloat(e.target.value));
-        document.getElementById('colorSlider').addEventListener('input', (e) => uniforms.uColorShift.value = parseFloat(e.target.value));
-
-        // --- 6. Render Loop ---
+        // --- 9. Render Loop ---
         const clock = new THREE.Clock();
+
         function animate() {
             requestAnimationFrame(animate);
             const time = clock.getElapsedTime();
             uniforms.uTime.value = time;
+            
+            // Interaction Plane Logic
+            if(isInteractionEnabled) {
+                interactionPlane.quaternion.copy(camera.quaternion);
+                interactionPlane.position.set(0,0,0);
+            }
+
             controls.update();
             renderer.render(scene, camera);
         }
-        animate();
+        
+        // Mouse Tracking
+        window.addEventListener('mousemove', (e) => {
+            pointer.x = (e.clientX / window.innerWidth) * 2 - 1;
+            pointer.y = -(e.clientY / window.innerHeight) * 2 + 1;
+
+            if(isInteractionEnabled && currentPoints) {
+                raycaster.setFromCamera(pointer, camera);
+                const intersects = raycaster.intersectObject(interactionPlane);
+                if (intersects.length > 0) {
+                    const pt = intersects[0].point;
+                    uniforms.uMouse.value.lerp(pt, 0.2); 
+                    cursorMesh.position.copy(pt);
+                } else {
+                    uniforms.uMouse.value.set(999,999,999);
+                }
+            }
+        });
 
         window.addEventListener('resize', () => {
             camera.aspect = window.innerWidth / window.innerHeight;
             camera.updateProjectionMatrix();
             renderer.setSize(window.innerWidth, window.innerHeight);
         });
+
+        animate();
     </script>
 </body>
 </html>
