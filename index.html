@@ -1,0 +1,416 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ThreeJS Point Cloud Animator</title>
+    <style>
+        body { margin: 0; overflow: hidden; background-color: #111; color: white; font-family: sans-serif; }
+        canvas { display: block; }
+        
+        /* UI Overlay */
+        #ui {
+            position: absolute; top: 10px; left: 10px; width: 300px;
+            padding: 15px; background: rgba(0, 0, 0, 0.85);
+            border-radius: 8px; border: 1px solid #444;
+            pointer-events: auto;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.5);
+            max-height: 95vh; overflow-y: auto;
+            scrollbar-width: thin;
+            scrollbar-color: #444 #222;
+        }
+        
+        h3 { margin: 0 0 5px 0; font-size: 16px; color: #00d2ff; }
+        h4 { margin: 15px 0 5px 0; font-size: 14px; color: #ff0077; border-top: 1px solid #444; padding-top: 10px; }
+        p.sub { margin: 0 0 15px 0; font-size: 11px; color: #888; line-height: 1.4; }
+        
+        .control-group { margin-bottom: 8px; }
+        label { display: flex; justify-content: space-between; font-size: 11px; margin-bottom: 2px; color: #ccc; }
+        input[type="range"] { width: 100%; cursor: pointer; accent-color: #00d2ff; height: 5px; }
+        input[type="file"] { font-size: 12px; width: 100%; margin-bottom: 10px; }
+        
+        /* Buttons */
+        .btn-row { display: flex; gap: 5px; margin-bottom: 10px; }
+        button { flex: 1; padding: 6px; background: #333; color: white; border: 1px solid #555; cursor: pointer; border-radius: 4px; font-size: 11px; transition: 0.2s;}
+        button:hover { background: #444; border-color: #777; }
+        button.primary { background: #005f73; border-color: #008cba; }
+        button.primary:hover { background: #007791; }
+        button.danger { background: #5a1a1a; border-color: #8b2e2e; }
+        
+        /* Timeline Visuals */
+        #timeline-ui {
+            display: flex; gap: 2px; flex-wrap: wrap; margin-bottom: 10px;
+            min-height: 20px; background: #222; padding: 5px; border-radius: 4px;
+        }
+        .keyframe-chip {
+            width: 20px; height: 20px; background: #00d2ff; border-radius: 50%;
+            font-size: 10px; color: #000; display: flex; align-items: center; justify-content: center;
+            font-weight: bold; cursor: pointer;
+        }
+        .keyframe-chip:hover { background: #fff; }
+
+        .loading { color: yellow; font-size: 12px; display: none; margin-bottom: 10px;}
+        
+        /* Input for duration */
+        .dur-input { width: 40px; background: #222; border: 1px solid #444; color: white; border-radius: 3px; text-align: center; }
+    </style>
+</head>
+<body>
+
+    <!-- UI Panel -->
+    <div id="ui">
+        <h3>Point Cloud Animator</h3>
+        <p class="sub">Left Click: Rotate | Right Click: Pan</p>
+        
+        <input type="file" id="fileInput" accept=".ply,.obj" />
+        <div id="loadingMsg" class="loading">Processing...</div>
+        
+        <div class="control-group">
+            <label>Disintegration <span>(Explode)</span></label>
+            <input type="range" id="explodeSlider" min="0" max="5.0" step="0.01" value="0">
+        </div>
+
+        <div class="control-group">
+            <label>Twist <span>(Vortex)</span></label>
+            <input type="range" id="twistSlider" min="0" max="3.0" step="0.01" value="0">
+        </div>
+
+        <div class="control-group">
+            <label>Noise <span>(Wavy)</span></label>
+            <input type="range" id="noiseSlider" min="0" max="2.0" step="0.01" value="0">
+        </div>
+
+        <div class="control-group">
+            <label>Point Size</label>
+            <input type="range" id="sizeSlider" min="0.01" max="0.3" step="0.001" value="0.03">
+        </div>
+        
+        <div class="control-group">
+            <label>Color Hue</label>
+            <input type="range" id="colorSlider" min="0" max="1" step="0.01" value="0">
+        </div>
+
+        <!-- Animation Controls -->
+        <h4>Timeline</h4>
+        <div class="control-group">
+            <label>Duration to next (sec): <input type="number" id="durationInput" value="2.0" class="dur-input" step="0.1"></label>
+        </div>
+
+        <div id="timeline-ui">
+            <!-- Keyframe chips go here -->
+        </div>
+
+        <div class="btn-row">
+            <button id="btnAddKF" class="primary">+ Add Keyframe</button>
+            <button id="btnClear" class="danger">Clear</button>
+        </div>
+        <div class="btn-row">
+            <button id="btnPlay" style="background: #2ea043;">▶ Play Animation</button>
+        </div>
+    </div>
+
+    <!-- Application Script -->
+    <script type="module">
+        import * as THREE from 'https://esm.sh/three@0.160.0';
+        import { OrbitControls } from 'https://esm.sh/three@0.160.0/examples/jsm/controls/OrbitControls.js';
+        import { PLYLoader } from 'https://esm.sh/three@0.160.0/examples/jsm/loaders/PLYLoader.js';
+        import { OBJLoader } from 'https://esm.sh/three@0.160.0/examples/jsm/loaders/OBJLoader.js';
+        // Import GSAP for Tweens
+        import gsap from 'https://esm.sh/gsap@3.12.5';
+
+        // --- 1. Setup Scene ---
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color(0x111111);
+        
+        const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.01, 100);
+        camera.position.set(0, 0, 4); 
+
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+        document.body.appendChild(renderer.domElement);
+
+        const controls = new OrbitControls(camera, renderer.domElement);
+        controls.enableDamping = true;
+        controls.dampingFactor = 0.05;
+
+        // --- 2. Shader Material ---
+        const uniforms = {
+            uTime: { value: 0 },
+            uExplode: { value: 0 },
+            uTwist: { value: 0 },
+            uNoiseStrength: { value: 0 },
+            uPointSize: { value: 0.03 },
+            uColorShift: { value: 0.0 }
+        };
+
+        const particleMaterial = new THREE.ShaderMaterial({
+            uniforms: uniforms,
+            vertexShader: `
+                uniform float uTime;
+                uniform float uExplode;
+                uniform float uTwist;
+                uniform float uNoiseStrength;
+                uniform float uPointSize;
+                
+                attribute vec3 aRandom;
+                attribute float aSize;
+                varying vec3 vColor;
+
+                void main() {
+                    vec3 pos = position;
+
+                    // Twist
+                    float angle = pos.y * uTwist;
+                    float s = sin(angle);
+                    float c = cos(angle);
+                    mat2 rotation = mat2(c, -s, s, c);
+                    pos.xz = pos.xz * rotation;
+
+                    // Noise
+                    pos.x += sin(pos.y * 10.0 + uTime * 2.0) * uNoiseStrength * 0.1;
+                    pos.z += cos(pos.x * 10.0 + uTime * 2.0) * uNoiseStrength * 0.1;
+
+                    // Disintegration
+                    pos += aRandom * uExplode * (1.0 + sin(uTime * 3.0 + pos.y) * 0.2);
+
+                    vec4 mvPosition = modelViewMatrix * vec4(pos, 1.0);
+                    gl_PointSize = uPointSize * (300.0 / -mvPosition.z) * aSize;
+                    gl_Position = projectionMatrix * mvPosition;
+                    vColor = color; 
+                }
+            `,
+            fragmentShader: `
+                uniform float uColorShift;
+                varying vec3 vColor;
+
+                vec3 hueShift(vec3 color, float hue) {
+                    const vec3 k = vec3(0.57735, 0.57735, 0.57735);
+                    float cosAngle = cos(hue * 6.28318);
+                    return vec3(color * cosAngle + cross(k, color) * sin(hue * 6.28318) + k * dot(k, color) * (1.0 - cosAngle));
+                }
+
+                void main() {
+                    vec2 coord = gl_PointCoord - vec2(0.5);
+                    if(length(coord) > 0.5) discard;
+                    vec3 finalColor = hueShift(vColor, uColorShift);
+                    // Simple glow
+                    float alpha = 1.0 - smoothstep(0.2, 0.5, length(coord));
+                    gl_FragColor = vec4(finalColor, alpha);
+                }
+            `,
+            transparent: true,
+            vertexColors: true,
+            blending: THREE.AdditiveBlending,
+            depthWrite: false
+        });
+
+        let currentPoints = null;
+
+        // --- 3. Animation Logic (Timeline) ---
+        let keyframes = [];
+        const timelineUI = document.getElementById('timeline-ui');
+        
+        // Helper: Update UI sliders to match internal state
+        function updateSlidersFromUniforms() {
+            document.getElementById('explodeSlider').value = uniforms.uExplode.value;
+            document.getElementById('twistSlider').value = uniforms.uTwist.value;
+            document.getElementById('noiseSlider').value = uniforms.uNoiseStrength.value;
+            document.getElementById('sizeSlider').value = uniforms.uPointSize.value;
+            document.getElementById('colorSlider').value = uniforms.uColorShift.value;
+        }
+
+        document.getElementById('btnAddKF').addEventListener('click', () => {
+            const duration = parseFloat(document.getElementById('durationInput').value) || 1.0;
+            
+            // Capture current state
+            const kf = {
+                explode: uniforms.uExplode.value,
+                twist: uniforms.uTwist.value,
+                noise: uniforms.uNoiseStrength.value,
+                size: uniforms.uPointSize.value,
+                colorShift: uniforms.uColorShift.value,
+                // Capture Camera
+                camPos: camera.position.clone(),
+                camTarget: controls.target.clone(),
+                duration: duration
+            };
+            
+            keyframes.push(kf);
+            renderTimelineUI();
+        });
+
+        document.getElementById('btnClear').addEventListener('click', () => {
+            keyframes = [];
+            renderTimelineUI();
+        });
+
+        function renderTimelineUI() {
+            timelineUI.innerHTML = '';
+            keyframes.forEach((kf, index) => {
+                const chip = document.createElement('div');
+                chip.className = 'keyframe-chip';
+                chip.textContent = index + 1;
+                chip.title = `Dur: ${kf.duration}s`;
+                chip.onclick = () => restoreKeyframe(kf);
+                timelineUI.appendChild(chip);
+            });
+        }
+
+        function restoreKeyframe(kf) {
+            // Instant jump to state (for previewing)
+            uniforms.uExplode.value = kf.explode;
+            uniforms.uTwist.value = kf.twist;
+            uniforms.uNoiseStrength.value = kf.noise;
+            uniforms.uPointSize.value = kf.size;
+            uniforms.uColorShift.value = kf.colorShift;
+            
+            camera.position.copy(kf.camPos);
+            controls.target.copy(kf.camTarget);
+            controls.update();
+            updateSlidersFromUniforms();
+        }
+
+        document.getElementById('btnPlay').addEventListener('click', () => {
+            if(keyframes.length < 1) return;
+
+            // Create a GSAP Timeline
+            const tl = gsap.timeline({
+                onUpdate: updateSlidersFromUniforms // Sync sliders during playback
+            });
+
+            // Reset to first keyframe immediately
+            const start = keyframes[0];
+            restoreKeyframe(start);
+
+            // Chain subsequent keyframes
+            for(let i = 1; i < keyframes.length; i++) {
+                const kf = keyframes[i];
+                
+                // Animate Uniforms
+                tl.to(uniforms.uExplode, { value: kf.explode, duration: kf.duration, ease: "power2.inOut" }, `step${i}`);
+                tl.to(uniforms.uTwist, { value: kf.twist, duration: kf.duration, ease: "power2.inOut" }, `step${i}`);
+                tl.to(uniforms.uNoiseStrength, { value: kf.noise, duration: kf.duration, ease: "power2.inOut" }, `step${i}`);
+                tl.to(uniforms.uPointSize, { value: kf.size, duration: kf.duration, ease: "power2.inOut" }, `step${i}`);
+                tl.to(uniforms.uColorShift, { value: kf.colorShift, duration: kf.duration, ease: "power2.inOut" }, `step${i}`);
+                
+                // Animate Camera Position
+                tl.to(camera.position, { 
+                    x: kf.camPos.x, y: kf.camPos.y, z: kf.camPos.z, 
+                    duration: kf.duration, 
+                    ease: "power2.inOut",
+                    onUpdate: () => controls.update() // Update controls as camera moves
+                }, `step${i}`);
+                
+                // Animate Controls Target (where camera looks)
+                tl.to(controls.target, { 
+                    x: kf.camTarget.x, y: kf.camTarget.y, z: kf.camTarget.z, 
+                    duration: kf.duration, 
+                    ease: "power2.inOut" 
+                }, `step${i}`);
+            }
+        });
+
+
+        // --- 4. File Handling & Normalization ---
+        const fileInput = document.getElementById('fileInput');
+        const loadingMsg = document.getElementById('loadingMsg');
+
+        fileInput.addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+            loadingMsg.style.display = 'block';
+            const reader = new FileReader();
+            reader.onload = function(event) {
+                const contents = event.target.result;
+                const ext = file.name.split('.').pop().toLowerCase();
+                if (ext === 'ply') loadPLY(contents);
+                else if (ext === 'obj') loadOBJ(contents);
+                else { alert("Use .ply or .obj"); loadingMsg.style.display = 'none'; }
+            };
+            if(file.name.endsWith('.obj')) reader.readAsText(file);
+            else reader.readAsArrayBuffer(file);
+        });
+
+        function loadPLY(data) {
+            const loader = new PLYLoader();
+            const geometry = loader.parse(data);
+            processGeometry(geometry);
+        }
+
+        function loadOBJ(data) {
+            const loader = new OBJLoader();
+            const object = loader.parse(data);
+            let geometry = null;
+            object.traverse((child) => { if (child.isMesh && !geometry) geometry = child.geometry; });
+            if(geometry) processGeometry(geometry);
+        }
+
+        function processGeometry(geometry) {
+            if (currentPoints) {
+                scene.remove(currentPoints);
+                currentPoints.geometry.dispose();
+            }
+            // Normalize
+            geometry.center();
+            geometry.computeBoundingBox();
+            const box = geometry.boundingBox;
+            const size = new THREE.Vector3();
+            box.getSize(size);
+            const maxDim = Math.max(size.x, size.y, size.z);
+            if(maxDim > 0) { const s = 3.0 / maxDim; geometry.scale(s, s, s); }
+
+            const count = geometry.attributes.position.count;
+            const randoms = new Float32Array(count * 3);
+            const sizes = new Float32Array(count);
+            for(let i = 0; i < count; i++) {
+                randoms[i * 3] = (Math.random() - 0.5) * 2;
+                randoms[i * 3 + 1] = (Math.random() - 0.5) * 2;
+                randoms[i * 3 + 2] = (Math.random() - 0.5) * 2;
+                sizes[i] = 0.5 + Math.random();
+            }
+            geometry.setAttribute('aRandom', new THREE.BufferAttribute(randoms, 3));
+            geometry.setAttribute('aSize', new THREE.BufferAttribute(sizes, 1));
+
+            if (!geometry.attributes.color) {
+                const colors = new Float32Array(count * 3);
+                const pos = geometry.attributes.position;
+                for(let i=0; i<count; i++) {
+                    colors[i*3] = 0.5 + (pos.getX(i)*0.3);
+                    colors[i*3+1] = 0.5 + (pos.getY(i)*0.3);
+                    colors[i*3+2] = 1.0;
+                }
+                geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+            }
+
+            currentPoints = new THREE.Points(geometry, particleMaterial);
+            scene.add(currentPoints);
+            loadingMsg.style.display = 'none';
+        }
+
+        // --- 5. Inputs Connection ---
+        document.getElementById('explodeSlider').addEventListener('input', (e) => uniforms.uExplode.value = parseFloat(e.target.value));
+        document.getElementById('twistSlider').addEventListener('input', (e) => uniforms.uTwist.value = parseFloat(e.target.value));
+        document.getElementById('noiseSlider').addEventListener('input', (e) => uniforms.uNoiseStrength.value = parseFloat(e.target.value));
+        document.getElementById('sizeSlider').addEventListener('input', (e) => uniforms.uPointSize.value = parseFloat(e.target.value));
+        document.getElementById('colorSlider').addEventListener('input', (e) => uniforms.uColorShift.value = parseFloat(e.target.value));
+
+        // --- 6. Render Loop ---
+        const clock = new THREE.Clock();
+        function animate() {
+            requestAnimationFrame(animate);
+            const time = clock.getElapsedTime();
+            uniforms.uTime.value = time;
+            controls.update();
+            renderer.render(scene, camera);
+        }
+        animate();
+
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+    </script>
+</body>
+</html>
